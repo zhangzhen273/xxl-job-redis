@@ -3,6 +3,7 @@ package com.xxl.job.admin.controller;
 import com.xxl.job.admin.core.model.XxlJobSubTask;
 import com.xxl.job.admin.service.SubTaskService;
 import com.xxl.job.core.biz.model.ReturnT;
+import io.swagger.annotations.Api;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -15,6 +16,7 @@ import java.util.Map;
 /**
  * @author xuxueli 2019-05-04 16:39:50
  */
+@Api(description = "子任务相关接口")
 @Controller
 @RequestMapping("/subTask")
 public class SubTaskController {
