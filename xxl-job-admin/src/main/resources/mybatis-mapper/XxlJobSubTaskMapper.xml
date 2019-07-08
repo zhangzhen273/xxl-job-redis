@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+	"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xxl.job.admin.dao.XxlJobSubTaskDao">
+
+	<resultMap id="XxlJobSubTask" type="com.xxl.job.admin.core.model.XxlJobSubTask" >
+		<result column="sub_task_id" property="subTaskId" />
+		<result column="sub_task_name" property="subTaskName" />
+	    <result column="job_id" property="jobId" />
+	    <result column="task_type" property="taskType" />
+	    <result column="task_cron" property="taskCron" />
+		<result column="task_paramter" property="taskParamter" />
+		<result column="task_status" property="taskStatus" />
+		<result column="app_id" property="appId" />
+		<result column="create_time" property="createTime" />
+		<result column="create_user_id" property="createUserId" />
+		<result column="update_time" property="updateTime" />
+		<result column="update_user_id" property="updateUserId" />
+		<result column="opt_version" property="optVersion" />
+	</resultMap>
+
+	<sql id="Base_Column_List">
+		t.sub_task_id,
+		t.sub_task_name,
+		t.job_id,
+		t.task_type,
+		t.task_cron,
+		t.task_paramter,
+		t.task_status,
+		t.app_id,
+		t.create_time,
+		t.reate_user_id,
+		t.update_time,
+		t.update_user_id,
+		t.opt_version
+	</sql>
+
+	<select id="pageList" parameterType="java.util.HashMap" resultMap="XxlJobSubTask">
+		SELECT <include refid="Base_Column_List" />
+		FROM XXL_JOB_SUB_TASK AS t
+		<trim prefix="WHERE" prefixOverrides="AND | OR" >
+			<if test="subTaskName != null and subTaskName != ''">
+				AND t.sub_task_name like CONCAT(CONCAT('%', #{subTaskName}), '%')
+			</if>
+			<if test="appId != null and appId != ''">
+				AND t.app_id = #{appId}
+			</if>
+		</trim>
+		ORDER BY t.create_time desc
+		LIMIT #{offset}, #{pagesize}
+	</select>
+
+	<select id="pageListCount" parameterType="java.util.HashMap" resultType="int">
+		SELECT count(1)
+		FROM XXL_JOB_SUB_TASK AS t
+		<trim prefix="WHERE" prefixOverrides="AND | OR" >
+			<if test="subTaskName != null and subTaskName != ''">
+				AND t.sub_task_name like CONCAT(CONCAT('%', #{subTaskName}), '%')
+			</if>
+			<if test="appId != null and appId != ''">
+				AND t.app_id = #{appId}
+			</if>
+		</trim>
+	</select>
+
+
+	<insert id="save" parameterType="com.xxl.job.admin.core.model.XxlJobSubTask" useGeneratedKeys="true" keyProperty="id" >
+		INSERT INTO XXL_JOB_QRTZ_USER (
+			sub_task_name,
+			job_id,
+			task_type,
+			task_cron,
+			task_paramter,
+			task_status,
+			app_id,
+			reate_user_id,
+			opt_version
+		) VALUES (
+			#{subTaskName},
+			#{jobId},
+			#{taskType},
+			#{taskCron},
+			#{taskParamter},
+			#{taskStatus},
+			#{appId},
+			#{createUserId},
+			#{optVersion},
+		);
+	</insert>
+
+	<update id="update" parameterType="com.xxl.job.admin.core.model.XxlJobUser" >
+		UPDATE XXL_JOB_QRTZ_USER
+		SET
+			<if test="subTaskName != null and subTaskName != ''">
+				sub_task_name = #{sub_task_name},
+			</if>
+			<if test="taskType != null and taskType != '' ">
+				task_type = #{taskType},
+			</if>
+			<if test="taskCron != null and taskCron != '' ">
+				task_cron = #{taskCron},
+			</if>
+			<if test="taskParamter != null">
+				task_paramter = #{taskParamter},
+			</if>
+			<if test="taskStatus != null and taskStatus != '' ">
+				task_status = #{taskStatus},
+			</if>
+			<if test="updateUserId != null and updateUserId != '' ">
+				update_user_id = #{updateUserId},
+			</if>
+			<if test="optVersion != null ">
+				opt_version = #{optVersion}+1,
+			</if>
+		WHERE sub_task_id = #{subTaskId}
+	</update>
+
+	<delete id="delete" parameterType="java.util.HashMap">
+		UPDATE XXL_JOB_QRTZ_USER
+		SET task_status = 0
+		WHERE sub_task_id = #{subTaskId}
+	</delete>
+
+</mapper>
