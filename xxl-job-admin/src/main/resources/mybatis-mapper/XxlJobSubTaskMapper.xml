@@ -50,6 +50,12 @@
 		LIMIT #{offset}, #{pagesize}
 	</select>
 
+	<select id="getById" parameterType="java.util.HashMap" resultMap="XxlJobSubTask">
+		SELECT <include refid="Base_Column_List" />
+		FROM XXL_JOB_SUB_TASK AS t
+		WHERE T.sub_task_id = #{subTaskId}
+	</select>
+
 	<select id="pageListCount" parameterType="java.util.HashMap" resultType="int">
 		SELECT count(1)
 		FROM XXL_JOB_SUB_TASK AS t

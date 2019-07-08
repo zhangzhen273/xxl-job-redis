@@ -36,9 +36,11 @@ import java.util.*;
 
 public class SubTaskTrigger {
 
-    private static String SUB_TASK_PREFIX = "SUB_TASK_";
-    private static IStorageRegion scheduler = StorageRegion.SCHEDULER;
-    private static RedisOps.RedisZSetOps zSetOps = scheduler.getOperations(RedisOps.RedisZSetOps.class);
+    public static String SUB_TASK_PREFIX = "SUB_TASK_";
+    public static IStorageRegion scheduler = StorageRegion.SCHEDULER;
+    public static RedisOps.RedisZSetOps zSetOps = scheduler.getOperations(RedisOps.RedisZSetOps.class);
+
+    public static RedisOps.RedisHashOps hashOps = scheduler.getOperations(RedisOps.RedisHashOps.class);
 
 
     private static Jackson2JsonRedisSerializer jackson2JsonRedisSerializer = new Jackson2JsonRedisSerializer(Object.class);
@@ -52,7 +54,7 @@ public class SubTaskTrigger {
      * 分片执行任务，获取当前需要执行任务的size，平均分配到已注册上来的执行器
      */
     public static void blockingExcuteTask(XxlJobGroup group,TriggerParam triggerParam){
-        final String key = keyForScheduler(triggerParam);
+        final String key = keyForScheduler(String.valueOf(triggerParam.getJobId()));
         final double end = System.currentTimeMillis();
         final long jobSize = XxlJobAdminConfig.getAdminConfig().getRedisUtil().countRangeByScore(key,0,end);
         List<String> registryList = group.getRegistryList();
@@ -208,16 +210,17 @@ public class SubTaskTrigger {
     /**
      * TODO
      * 获取zSert key
-     * @param triggerParam
+     * @param jobId
      * @return
      */
-    private static String keyForScheduler(final TriggerParam triggerParam) {
+    public static String keyForScheduler(final String jobId) {
         String prefix = "";
         if (!StringUtils.isEmpty(scheduler.getStorageUnited().getPrefix())) {
             prefix = scheduler.getStorageUnited().getPrefix() + ":";
         }
-        return prefix + scheduler.getName()+"_"+SUB_TASK_PREFIX+triggerParam.getJobId();
+        return prefix + scheduler.getName()+"_"+SUB_TASK_PREFIX+jobId;
     }
+
 
     /**
      * TODO

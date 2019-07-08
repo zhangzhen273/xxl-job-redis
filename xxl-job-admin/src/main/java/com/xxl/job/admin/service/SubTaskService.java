@@ -8,9 +8,16 @@ import java.util.Map;
 
 public interface SubTaskService {
 
+
+    ReturnT<String> suspendSubTask(Long subTaskId);
+
+    ReturnT<String> openSubTask(Long subTaskId);
+
     ReturnT<String> addOrUpdateSubTask(XxlJobSubTask subTask);
 
     ReturnT<String> deleteSubTask(Long subTaskId);
+
+    ReturnT<String> recoverySubTask(Long subTaskId);
 
     ReturnT<Map<String, Object>> pageList(int start, int pageSize, XxlJobSubTask subTask);
 

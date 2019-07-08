@@ -28,5 +28,6 @@ public interface XxlJobSubTaskDao {
 
     Integer delete(@Param("subTaskId") Long subTaskId);
 
+    XxlJobSubTask getById(@Param("subTaskId") Long subTaskId);
 
 }

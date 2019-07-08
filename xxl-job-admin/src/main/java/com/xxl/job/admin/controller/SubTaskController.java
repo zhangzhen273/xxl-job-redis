@@ -47,4 +47,31 @@ public class SubTaskController {
         return result;
     }
 
+    @RequestMapping("/startSubTask")
+    @ResponseBody
+    public ReturnT<String> startSubTask(Long subTaskId){
+        if(subTaskId == null){
+            return new ReturnT(ReturnT.FAIL_CODE,"参数错误！");
+        }
+        return subTaskService.openSubTask(subTaskId);
+    }
+
+    @RequestMapping("/suspendSubTask")
+    @ResponseBody
+    public ReturnT<String> suspendSubTask(Long subTaskId){
+        if(subTaskId == null){
+            return new ReturnT(ReturnT.FAIL_CODE,"参数错误！");
+        }
+        return subTaskService.suspendSubTask(subTaskId);
+    }
+
+    @RequestMapping("/recoverySubTask")
+    @ResponseBody
+    public ReturnT<String> recoverySubTask(Long subTaskId){
+        if(subTaskId == null){
+            return new ReturnT(ReturnT.FAIL_CODE,"参数错误！");
+        }
+        return subTaskService.recoverySubTask(subTaskId);
+    }
+
 }
