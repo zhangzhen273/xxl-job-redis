@@ -76,8 +76,9 @@ public class JobThread extends Thread{
 
 			triggerLogIdSet.add(triggerParam.getExcuteId());
 			triggerQueue.add(triggerParam);
+
 		}
-		return ReturnT.SUCCESS;
+		return new ReturnT<>(ReturnT.SUCCESS_CODE,String.valueOf(triggerQueue.size()));
 	}
 
     /**
@@ -140,6 +141,7 @@ public class JobThread extends Thread{
 						// limit timeout
 						Thread futureThread = null;
 						try {
+							triggerParam.setExecutorParams(triggerParam.getExcuteId());
 							final TriggerParam triggerParamTmp = triggerParam;
 							FutureTask<ReturnT<String>> futureTask = new FutureTask<ReturnT<String>>(new Callable<ReturnT<String>>() {
 								@Override

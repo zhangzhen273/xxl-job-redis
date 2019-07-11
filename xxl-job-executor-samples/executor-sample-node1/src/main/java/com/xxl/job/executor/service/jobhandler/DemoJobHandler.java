@@ -23,7 +23,7 @@ public class DemoJobHandler extends IJobHandler {
 
 	@Override
 	public ReturnT<String> execute(String param) throws Exception {
-		System.out.println("XXL-JOB, Hello World.");
+		System.out.println("XXL-JOB, Hello World.参数："+param);
 		return SUCCESS;
 	}
 

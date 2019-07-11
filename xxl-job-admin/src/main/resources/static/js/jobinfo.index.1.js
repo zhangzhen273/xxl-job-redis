@@ -381,7 +381,7 @@ $(function() {
 		// executorHandler
         var $executorHandler = $(this).parents("form").find("input[name='executorHandler']");
         var glueType = $(this).val();
-        if ('BEAN' != glueType || 'BEAN(SUBTASK)' != glueType) {
+        if ('BEAN' != glueType && 'BEAN_SUB_TASK' != glueType) {
             $executorHandler.val("");
             $executorHandler.attr("readonly","readonly");
         } else {

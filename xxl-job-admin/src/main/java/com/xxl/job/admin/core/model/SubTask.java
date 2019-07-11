@@ -1,6 +1,11 @@
 package com.xxl.job.admin.core.model;
 
 import com.alibaba.fastjson.JSON;
+import com.xxl.job.admin.core.conf.XxlJobAdminConfig;
+import com.xxl.job.admin.core.trigger.SubTaskTrigger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.cache.annotation.Cacheable;
 
 import java.io.Serializable;
 import java.util.UUID;
@@ -47,4 +52,6 @@ public class SubTask implements Serializable{
     public void setSubTaskExcuteId(String subTaskExcuteId) {
         this.subTaskExcuteId = subTaskExcuteId;
     }
+
+
 }

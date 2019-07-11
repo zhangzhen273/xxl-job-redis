@@ -1,13 +1,12 @@
 package com.xxl.job.admin.controller;
 
+import com.xxl.job.admin.core.model.SubTask;
 import com.xxl.job.admin.core.model.XxlJobSubTask;
 import com.xxl.job.admin.service.SubTaskService;
 import com.xxl.job.core.biz.model.ReturnT;
 import io.swagger.annotations.Api;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import javax.validation.Valid;
@@ -24,7 +23,8 @@ public class SubTaskController {
     @Resource
     private SubTaskService subTaskService;
 
-    @RequestMapping("/addOrUpdateSubTask")
+
+    @PostMapping("/addOrUpdateSubTask")
     @ResponseBody
     public ReturnT<String> addOrUpdateSubTask(@RequestBody @Valid XxlJobSubTask subTask){
         if(subTask == null){
@@ -33,7 +33,14 @@ public class SubTaskController {
         return subTaskService.addOrUpdateSubTask(subTask);
     }
 
-    @RequestMapping("/deleteSubTask")
+    @GetMapping("/getSubTask")
+    @ResponseBody
+    public SubTask getSubTask(String subTaskId, String jobId){
+        return subTaskService.getSubTask(jobId,subTaskId);
+    }
+
+
+    @GetMapping("/deleteSubTask")
     @ResponseBody
     public ReturnT<String> deleteSubTask(Long subTaskId){
         if(subTaskId == null){
@@ -41,15 +48,13 @@ public class SubTaskController {
         }
         return subTaskService.deleteSubTask(subTaskId);
     }
-    @RequestMapping("/pageList")
+    @GetMapping("/pageList")
     @ResponseBody
     public ReturnT<Map<String, Object>> pageList(int start, int pageSize, XxlJobSubTask subTask){
-        ReturnT<Map<String, Object>> result;
-        result = subTaskService.pageList(start,pageSize,subTask);
-        return result;
+        return subTaskService.pageList(start,pageSize,subTask);
     }
 
-    @RequestMapping("/startSubTask")
+    @GetMapping("/startSubTask")
     @ResponseBody
     public ReturnT<String> startSubTask(Long subTaskId){
         if(subTaskId == null){
@@ -58,7 +63,7 @@ public class SubTaskController {
         return subTaskService.openSubTask(subTaskId);
     }
 
-    @RequestMapping("/suspendSubTask")
+    @GetMapping("/suspendSubTask")
     @ResponseBody
     public ReturnT<String> suspendSubTask(Long subTaskId){
         if(subTaskId == null){
@@ -67,7 +72,7 @@ public class SubTaskController {
         return subTaskService.suspendSubTask(subTaskId);
     }
 
-    @RequestMapping("/recoverySubTask")
+    @GetMapping("/recoverySubTask")
     @ResponseBody
     public ReturnT<String> recoverySubTask(Long subTaskId){
         if(subTaskId == null){

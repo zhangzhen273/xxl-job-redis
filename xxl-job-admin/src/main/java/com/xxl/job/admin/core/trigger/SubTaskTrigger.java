@@ -1,51 +1,42 @@
 package com.xxl.job.admin.core.trigger;
 
 import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONObject;
 import com.clife.utils.cache.memorystorage.IStorageRegion;
-import com.clife.utils.cache.memorystorage.RedisClientFlowControl;
 import com.clife.utils.cache.memorystorage.RedisOps;
 import com.clife.utils.cache.memorystorage.StorageRegion;
-import com.clife.utils.cache.scheduler.TaskType;
 import com.xxl.job.admin.core.conf.XxlJobAdminConfig;
 import com.xxl.job.admin.core.model.SubTask;
 import com.xxl.job.admin.core.model.SubTaskZset;
 import com.xxl.job.admin.core.model.XxlJobGroup;
-import com.xxl.job.admin.core.route.ExecutorRouteStrategyEnum;
 import com.xxl.job.admin.core.schedule.XxlJobDynamicScheduler;
 import com.xxl.job.admin.core.util.CronUtils;
-import com.xxl.job.admin.core.util.I18nUtil;
-import com.xxl.job.admin.core.util.RedisUtil;
 import com.xxl.job.core.biz.ExecutorBiz;
 import com.xxl.job.core.biz.model.ReturnT;
 import com.xxl.job.core.biz.model.TriggerParam;
-import org.quartz.CronExpression;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.connection.RedisConnection;
-import org.springframework.data.redis.core.*;
-import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
-import org.springframework.data.redis.serializer.JdkSerializationRedisSerializer;
-import org.springframework.data.redis.serializer.RedisSerializer;
+import org.springframework.data.redis.core.RedisCallback;
+import org.springframework.data.redis.core.RedisOperations;
+import org.springframework.data.redis.core.SessionCallback;
+import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.util.StringUtils;
 
-import java.text.ParseException;
 import java.util.*;
 
 public class SubTaskTrigger {
 
-    public static String SUB_TASK_PREFIX = "SUB_TASK_";
+    public static String SUB_TASK_ZSET_PREFIX = "SUB_TASK_ZSET_";
+    public static String SUB_TASK_MAP_PREFIX = "SUB_TASK_MAP_";
+
+    public static int BATCH_EXCUTE_SIZE  = 1;
+
     public static IStorageRegion scheduler = StorageRegion.SCHEDULER;
+    public static IStorageRegion trigger = StorageRegion.TRIGGER;
     public static RedisOps.RedisZSetOps zSetOps = scheduler.getOperations(RedisOps.RedisZSetOps.class);
-
-    public static RedisOps.RedisHashOps hashOps = scheduler.getOperations(RedisOps.RedisHashOps.class);
-
-
-    private static Jackson2JsonRedisSerializer jackson2JsonRedisSerializer = new Jackson2JsonRedisSerializer(Object.class);
-
-
+    public static RedisOps.RedisHashOps hashOps = trigger.getOperations(RedisOps.RedisHashOps.class);
 
     private static Logger logger = LoggerFactory.getLogger(SubTaskTrigger.class);
 
@@ -54,22 +45,25 @@ public class SubTaskTrigger {
      * 分片执行任务，获取当前需要执行任务的size，平均分配到已注册上来的执行器
      */
     public static void blockingExcuteTask(XxlJobGroup group,TriggerParam triggerParam){
-        final String key = keyForScheduler(String.valueOf(triggerParam.getJobId()));
+        final String key = keyForZSet(String.valueOf(triggerParam.getJobId()));
         final double end = System.currentTimeMillis();
-        final long jobSize = XxlJobAdminConfig.getAdminConfig().getRedisUtil().countRangeByScore(key,0,end);
+        long jobSize = XxlJobAdminConfig.getAdminConfig().getRedisUtil().countRangeByScore(key,0,end);
+        logger.info("当前任务数："+jobSize);
+        if(jobSize == 0){
+            return;
+        }
         List<String> registryList = group.getRegistryList();
         int serviceSize = registryList.size();
         long count = jobSize/serviceSize+1;
+        count = count > BATCH_EXCUTE_SIZE ? BATCH_EXCUTE_SIZE : count;
         if (registryList != null && !registryList.isEmpty()) {
             String address ;
-            ExecutorBiz executorBiz;
-            for(Iterator<String> it = registryList.iterator();it.hasNext();){
-                try {
+            long sum = 0;
+            while(sum <= jobSize){
+                for(Iterator<String> it = registryList.iterator();it.hasNext();){
+                    sum = sum+count;
                     address = it.next();
-                    executorBiz = XxlJobDynamicScheduler.getExecutorBiz(address);
-                    batchExcuteSubTask(group,executorBiz,triggerParam,count,key);
-                } catch (Exception e) {
-                    logger.error("任务执行异常：blockingExcuteTask；",e);
+                    batchExcuteSubTask(group,address,triggerParam,count,key);
                 }
             }
         }
@@ -82,56 +76,69 @@ public class SubTaskTrigger {
      * 3 执行任务
      * 4 添加下一任务的执行点
      * @param group
-     * @param executorBiz 执行器
+     * @param address 执行器地址
      * @param triggerParam 执行参数
      * @param limit 执行任务最大限制
      * @param key zSet key
      */
-    public static void batchExcuteSubTask(final XxlJobGroup group,final ExecutorBiz executorBiz, final TriggerParam triggerParam,final long limit,final String key){
+    public static void batchExcuteSubTask(final XxlJobGroup group,final String address, final TriggerParam triggerParam,final long limit,final String key){
         zSetOps.multiExec(new SessionCallback() {
             @Override
             public Object execute(RedisOperations redisOperations) throws DataAccessException {
                 boolean taskWasTriggered = false;
-                //final String key = SUB_TASK_PREFIX+triggerParam.getJobId();//keyForScheduler(triggerParam);
                 redisOperations.watch(key);
-                List<SubTask> tasks = getSubTaskList(redisOperations, key,limit);
+                List<String> tasks = getSubTaskList(redisOperations, key,limit);
                 if (tasks == null || tasks.size()==0) {
                     redisOperations.unwatch();
                 } else {
-                    logger.info("获取子任务列表："+ tasks.size());
-                    Set<ZSetOperations.TypedTuple<Object>> addSet = new HashSet<>();
-                    List<TriggerParam> triggerParams = new ArrayList<>();
-                    TriggerParam tmp;
-                    SubTask task;
-                    SubTask newTask;
-                    ZSetOperations.TypedTuple<Object> subTaskZset;
-                    List<String> taskStrs = new ArrayList<>();
-                    for(Iterator<SubTask> it = tasks.iterator(); it.hasNext();){
-                        task = it.next();
-                        taskStrs.add(JSON.toJSONString(task));
-                        tmp = new TriggerParam();
-                        BeanUtils.copyProperties(triggerParam,tmp);
-                        tmp.setExcuteId(task.getSubTaskExcuteId());
-                        tmp.setSubTaskId(task.getSubTaskId());
-                        triggerParams.add(tmp);
-                        // 添加下一个任务
-                        newTask = new SubTask();
-                        newTask.setCron(task.getCron());
-                        newTask.setJobId(task.getJobId());
-                        newTask.setSubTaskExcuteId(task.getSubTaskId());
-                        newTask.setSubTaskExcuteUUID();
-                        subTaskZset = new SubTaskZset(JSON.toJSONString(newTask),(double)getCronNextExcuteTime(newTask.getCron()));
-                        addSet.add(subTaskZset);
+                    try{
+                        ExecutorBiz executorBiz = XxlJobDynamicScheduler.getExecutorBiz(address);
+                        Set<ZSetOperations.TypedTuple<Object>> addSet = new HashSet<>();
+                        List<TriggerParam> triggerParams = new ArrayList<>();
+                        TriggerParam tmp;
+                        String subTaskId;
+                        SubTask subTask;
+                        ZSetOperations.TypedTuple<Object> subTaskZset;
+                        List<String> taskStrs = new ArrayList<>();
+                        for(Iterator<String> it = tasks.iterator(); it.hasNext();){
+                            subTaskId = it.next();
+                            subTask = XxlJobAdminConfig.getAdminConfig().getSubTaskService().getSubTask(String.valueOf(triggerParam.getJobId()),subTaskId);
+                            if(subTask == null){
+                                logger.error("没有找到对应的任务信息，subTaskId："+subTaskId);
+                                continue;
+                            }
+                            Long nextTime = getCronNextExcuteTime(subTask.getCron());
+                            if(nextTime<=0){
+                                logger.error("cron表达式没有获取到下次执行时间，subTaskId："+subTaskId);
+                                continue;
+                            }
+                            tmp = new TriggerParam();
+                            BeanUtils.copyProperties(triggerParam,tmp);
+                            tmp.setExcuteId(String.valueOf(UUID.randomUUID()).replace("-",""));
+                            tmp.setSubTaskId(subTask.getSubTaskId());
+                            triggerParams.add(tmp);
+                            // 添加下一个任务
+                            subTaskZset = new SubTaskZset(Long.parseLong(subTask.getSubTaskId()),(double)nextTime);
+                            addSet.add(subTaskZset);
+                            taskStrs.add(subTaskId);
+                        }
+                        if(taskStrs.size() <= 0){
+                            logger.warn("该批次没有找到能够执行的任务");
+                            return true;
+                        }
+                        if(taskStrs.size() != tasks.size()){
+                            logger.warn("任务初始化警告：初始化任务个数与处理后的任务个数不一致！");
+                        }
+                        logger.info("此次执行任务Id："+JSON.toJSONString(taskStrs));
+                        redisOperations.multi();
+                        SubTaskTrigger.zSetOps.remove(SubTaskTrigger.SUB_TASK_ZSET_PREFIX+String.valueOf(triggerParam.getJobId()), taskStrs.toArray());
+                        boolean executionSuccess =(redisOperations.exec() != null);
+                        int queueSize = excuteSubTask(group,executorBiz,triggerParams);
+                        redisOperations.opsForZSet().add(key,addSet);
+                        taskWasTriggered = executionSuccess;
+                    }catch (Exception e){
+                        logger.error("任务执行异常：blockingExcuteTask；",e);
                     }
-                    redisOperations.multi();
-                    Long delCount = redisOperations.opsForZSet().remove(key, taskStrs.toArray());
-                    boolean executionSuccess = (redisOperations.exec() != null);
-                    logger.info("成功删除："+delCount);
-                    excuteSubTask(group,executorBiz,triggerParams);
-                    logger.info("成功执行："+addSet.size());
-                    Long addCount = redisOperations.opsForZSet().add(key,addSet);
-                    logger.info("成功添加："+addCount);
-                    taskWasTriggered = executionSuccess;
                 }
                 return taskWasTriggered;
             }
@@ -144,23 +151,26 @@ public class SubTaskTrigger {
      * @param executorBiz
      * @param triggerParams
      */
-    private static void excuteSubTask(XxlJobGroup group,ExecutorBiz executorBiz,List<TriggerParam> triggerParams){
+    private static int excuteSubTask(XxlJobGroup group,ExecutorBiz executorBiz,List<TriggerParam> triggerParams){
         // 批量执行任务
         ReturnT<String> returnT ;
         try{
             returnT = executorBiz.batchRun(triggerParams);
             if(ReturnT.SUCCESS.getCode() == returnT.getCode()){
-                return;
+                return Integer.parseInt(returnT.getMsg());
             }
+            logger.error("执行任务返回异常，开始重试",returnT.getMsg());
             returnT = retryExcute(group,triggerParams);
         }catch (Exception e){
-            logger.error("执行任务异常",e);
+            logger.error("执行任务异常，开始重试",e);
             returnT = retryExcute(group,triggerParams);
         }
-        // 最后执行失败
-        if(ReturnT.SUCCESS.getCode() != returnT.getCode()){
-            // 记录日志
+        if(ReturnT.SUCCESS.getCode() == returnT.getCode()){
+            return Integer.parseInt(returnT.getMsg());
+        } else {// 没有成功调用，记录日志
+            logger.error("执行任务失败");
             saveErrorLog(triggerParams,returnT);
+            return -1;
         }
     }
 
@@ -189,6 +199,7 @@ public class SubTaskTrigger {
         ReturnT<String> returnT ;
         List<String> registryList = group.getRegistryList();
         if (registryList != null && !registryList.isEmpty()) {
+            int retryCount = 1;
             for(Iterator<String> it = registryList.iterator();it.hasNext();){
                 try {
                     address = it.next();
@@ -198,7 +209,7 @@ public class SubTaskTrigger {
                         return returnT;
                     }
                 } catch (Exception e) {
-                    logger.error("任务重试异常",e);
+                    logger.error("任务重试异常,第"+ retryCount++ +"次重试",e);
                 }
             }
             return ReturnT.FAIL;
@@ -213,22 +224,37 @@ public class SubTaskTrigger {
      * @param jobId
      * @return
      */
-    public static String keyForScheduler(final String jobId) {
+    public static String keyForZSet(final String jobId) {
         String prefix = "";
         if (!StringUtils.isEmpty(scheduler.getStorageUnited().getPrefix())) {
             prefix = scheduler.getStorageUnited().getPrefix() + ":";
         }
-        return prefix + scheduler.getName()+"_"+SUB_TASK_PREFIX+jobId;
+        return prefix + scheduler.getName()+":"+SUB_TASK_ZSET_PREFIX+jobId;
     }
-
 
     /**
      * TODO
+     * 获取zSert key
+     * @param jobId
+     * @return
+     */
+    public static String keyForHashMap(final String jobId) {
+        String prefix = "";
+        if (!StringUtils.isEmpty(trigger.getStorageUnited().getPrefix())) {
+            prefix = trigger.getStorageUnited().getPrefix() + ":";
+        }
+        return prefix + trigger.getName()+":"+SUB_TASK_MAP_PREFIX+jobId;
+    }
+
+    /**
      * 计算cron表达式下一执行时间点
      * @param cron
      * @return
      */
     private static long getCronNextExcuteTime(String cron){
+        if(StringUtils.isEmpty(cron)){
+            return -1;
+        }
         long nextTime = CronUtils.computeNextTriggerTime(cron);
         if(nextTime<=0){
             return nextTime;
@@ -249,7 +275,7 @@ public class SubTaskTrigger {
      * @param limit
      * @return
      */
-    private static List<SubTask> getSubTaskList(RedisOperations ops,final String key,final long limit){
+    private static List<String> getSubTaskList(RedisOperations ops,final String key,final long limit){
         final long minScore = 0;
         final long maxScore = System.currentTimeMillis();
 
@@ -259,15 +285,14 @@ public class SubTaskTrigger {
                 return redisConnection.zRangeByScore(key.getBytes(), minScore, maxScore, 0, limit);
             }
         });
-        List<SubTask> foundTasks = new ArrayList<>();
+        List<String> foundTasks = new ArrayList<>();
         if (found != null && !found.isEmpty()) {
             Iterator<byte[]> it = found.iterator();
             while(it.hasNext()){
                 byte[] valueRaw = it.next();
-                String str = String.valueOf(jackson2JsonRedisSerializer.deserialize(valueRaw));
+                String str = RedisOps.getStringSerializer().deserialize(valueRaw);
                 if(str != null){
-                    SubTask task = JSON.parseObject(str,SubTask.class);
-                    foundTasks.add(task);
+                    foundTasks.add(str);
                 }
             }
         }

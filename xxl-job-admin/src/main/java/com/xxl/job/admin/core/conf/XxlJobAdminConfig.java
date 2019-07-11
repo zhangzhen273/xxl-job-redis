@@ -1,10 +1,9 @@
 package com.xxl.job.admin.core.conf;
 
+import com.xxl.job.admin.core.model.XxlJobSubTask;
 import com.xxl.job.admin.core.util.RedisUtil;
-import com.xxl.job.admin.dao.XxlJobGroupDao;
-import com.xxl.job.admin.dao.XxlJobInfoDao;
-import com.xxl.job.admin.dao.XxlJobLogDao;
-import com.xxl.job.admin.dao.XxlJobRegistryDao;
+import com.xxl.job.admin.dao.*;
+import com.xxl.job.admin.service.SubTaskService;
 import com.xxl.job.core.biz.AdminBiz;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Value;
@@ -51,6 +50,8 @@ public class XxlJobAdminConfig implements InitializingBean{
     @Resource
     private XxlJobGroupDao xxlJobGroupDao;
     @Resource
+    private XxlJobSubTaskDao xxlJobSubTaskDao;
+    @Resource
     private AdminBiz adminBiz;
     @Resource
     private JavaMailSender mailSender;
@@ -58,6 +59,8 @@ public class XxlJobAdminConfig implements InitializingBean{
     private RedisUtil redisUtil;
     @Resource
     private RedissonService redissonService;
+    @Resource
+    private SubTaskService subTaskService;
 
 
     public String getI18n() {
@@ -100,8 +103,15 @@ public class XxlJobAdminConfig implements InitializingBean{
         return redisUtil;
     }
 
+    public XxlJobSubTaskDao getXxlJobSubTaskDao() {
+        return xxlJobSubTaskDao;
+    }
+
     public RedissonService getRedissonService() {
         return redissonService;
     }
 
+    public SubTaskService getSubTaskService() {
+        return subTaskService;
+    }
 }

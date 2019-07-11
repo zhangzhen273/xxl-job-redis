@@ -1,5 +1,6 @@
 package com.xxl.job.admin.service;
 
+import com.xxl.job.admin.core.model.SubTask;
 import com.xxl.job.admin.core.model.XxlJobSubTask;
 import com.xxl.job.core.biz.model.ReturnT;
 
@@ -20,5 +21,7 @@ public interface SubTaskService {
     ReturnT<String> recoverySubTask(Long subTaskId);
 
     ReturnT<Map<String, Object>> pageList(int start, int pageSize, XxlJobSubTask subTask);
+
+    SubTask getSubTask(String jobId, String subTaskId);
 
 }

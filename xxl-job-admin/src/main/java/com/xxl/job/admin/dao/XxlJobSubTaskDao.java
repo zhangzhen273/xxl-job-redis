@@ -16,10 +16,10 @@ public interface XxlJobSubTaskDao {
 
     List<XxlJobSubTask> pageList(@Param("offset") int offset,
                                  @Param("pagesize") int pagesize,
-                                 @Param("username") String subTaskName,
+                                 @Param("subTaskName") String subTaskName,
                                  @Param("appId") String appId);
 
-    Integer pageListCount(@Param("username") String subTaskName,
+    Integer pageListCount(@Param("subTaskName") String subTaskName,
                           @Param("appId") String appId);
 
     Integer save(XxlJobSubTask subTask);
